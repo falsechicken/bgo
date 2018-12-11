@@ -3,8 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/bwmarrin/discordgo"
@@ -59,13 +61,52 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.ID == s.State.User.ID {
 		return
 	}
-	// If the message is "ping" reply with "Pong!"
-	if m.Content == "ping" {
-		s.ChannelMessageSend(m.ChannelID, "Pong!")
+
+	pandas := []string{"p9", "panda"}
+
+	for _, panda := range pandas {
+		if strings.Contains(strings.ToLower(m.Content), panda) {
+			s.ChannelMessageSend(m.ChannelID, "-1 xp for "+m.Author.Username)
+		}
 	}
 
-	// If the message is "pong" reply with "Ping!"
-	if m.Content == "pong" {
-		s.ChannelMessageSend(m.ChannelID, "Ping!")
+	if strings.HasPrefix(m.Content, ".") {
+
+		mm := strings.Fields(m.Content)
+
+		log.Println(mm)
+
+		for _, m := range mm {
+
+			switch true {
+			case strings.ContainsAny(m, "."):
+				log.Println("command:", m)
+			case strings.ContainsAny(m, "@"):
+				log.Println("user:", m)
+			case len(m) != 0:
+				log.Println("reason:", mm[2:len(mm)])
+			default:
+				log.Println(".warn [@username] reason")
+			}
+		}
 	}
+
+	/*
+
+		javascript version:
+
+		if (message.author.id === discord.user.id || !message.member) return false;
+		if (message.content && message.content.startsWith(".")){
+			var text = message.content;
+			var command = text.substring(1,text.indexOf(" "));
+			var args = text.substring(text.indexOf(" ")+1);
+
+			if(args != "" && commands.hasOwnProperty(command) && typeof commands[command] == "function"){
+				if(args != "" && args != null)
+					commands[command](message,args);
+			}
+			message.delete();
+		}
+
+	*/
 }
