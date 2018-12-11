@@ -8,11 +8,11 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
 
-// Variables used for command line parameters
 var (
 	Token string
 )
@@ -32,8 +32,8 @@ func main() {
 		return
 	}
 
-	// Register the messageCreate func as a callback for MessageCreate events.
-	dg.AddHandler(messageCreate)
+	// Register the onMessage func as a callback for MessageCreate events.
+	dg.AddHandler(onMessage)
 
 	// Open a websocket connection to Discord and begin listening.
 	err = dg.Open()
@@ -54,7 +54,7 @@ func main() {
 
 // This function will be called (due to AddHandler above) every time a new
 // message is created on any channel that the autenticated bot has access to.
-func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
+func onMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	// Ignore all messages created by the bot itself
 	// This isn't required in this specific example but it's a good practice.
@@ -62,51 +62,104 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
-	pandas := []string{"p9", "panda"}
-
-	for _, panda := range pandas {
-		if strings.Contains(strings.ToLower(m.Content), panda) {
-			s.ChannelMessageSend(m.ChannelID, "-1 xp for "+m.Author.Username)
-		}
-	}
+	var commands = []string{"warn", "kick", "ban"}
 
 	if strings.HasPrefix(m.Content, ".") {
 
+		// Gives back command substrings
 		mm := strings.Fields(m.Content)
 
-		log.Println(mm)
+		// verify user
+		if strings.ContainsAny(mm[1], "@") {
+			log.Println("user: ", mm[1])
+		} else {
+			// handle error
+		}
 
-		for _, m := range mm {
+		// verify reason
+		if len(mm[2:]) != 0 {
+			log.Println("reason: ", strings.Join(mm[2:], " "))
+		} else {
+			// handle error
+		}
 
-			switch true {
-			case strings.ContainsAny(m, "."):
-				log.Println("command:", m)
-			case strings.ContainsAny(m, "@"):
-				log.Println("user:", m)
-			case len(m) != 0:
-				log.Println("reason:", mm[2:len(mm)])
-			default:
-				log.Println(".warn [@username] reason")
+		// verify command
+		for _, command := range commands {
+			if strings.Contains(mm[0], command) {
+
+				switch command {
+				case commands[0]:
+
+					author := m.Author.Username
+					id := m.ChannelID
+					color := 112244
+					command := mm[0]
+					user := mm[1]
+					reason := strings.Join(mm[2:], " ")
+
+					sendMessage(s, id, author, user)
+					sendPrivateMessage() // good for now
+					Log(s, m, color, command, user, reason)
+				case commands[1]:
+				case commands[2]:
+				}
 			}
 		}
 	}
 
 	/*
 
-		javascript version:
+		command := []string{".command [@username] reason", "Valid commands are:", "warn", "kick", "ban"}
+		warning := strings.Join(command, "\n")
 
-		if (message.author.id === discord.user.id || !message.member) return false;
-		if (message.content && message.content.startsWith(".")){
-			var text = message.content;
-			var command = text.substring(1,text.indexOf(" "));
-			var args = text.substring(text.indexOf(" ")+1);
-
-			if(args != "" && commands.hasOwnProperty(command) && typeof commands[command] == "function"){
-				if(args != "" && args != null)
-					commands[command](message,args);
-			}
-			message.delete();
-		}
+		s.ChannelMessageSend(m.ChannelID, warning)
 
 	*/
 }
+
+// Log logs a new command
+func Log(s *discordgo.Session, m *discordgo.MessageCreate, color int, command, user, reason string) {
+
+	embed := &discordgo.MessageEmbed{
+		Color: color,
+		Fields: []*discordgo.MessageEmbedField{
+			&discordgo.MessageEmbedField{
+				Name:  "Command",
+				Value: command,
+			},
+			&discordgo.MessageEmbedField{
+				Name:  "User",
+				Value: user,
+			},
+			&discordgo.MessageEmbedField{
+				Name:  "Reason",
+				Value: reason,
+			},
+			&discordgo.MessageEmbedField{
+				Name:  "Text Channel",
+				Value: "<#" + m.ChannelID + ">",
+			},
+		},
+		Timestamp: time.Now().Format(time.RFC3339), // Discord wants ISO8601; RFC3339 is an extension of ISO8601 and should be completely compatible.
+		Footer: &discordgo.MessageEmbedFooter{
+			IconURL: m.Author.AvatarURL(""),
+			Text:    m.Author.String(),
+		},
+	}
+
+	st, _ := s.Channel(m.ChannelID)
+	xc, _ := s.GuildChannels(st.GuildID)
+	for _, v := range xc {
+		if strings.Contains(v.Name, "moderation-log") == true {
+			s.ChannelMessageSendEmbed(v.ID, embed)
+		} else {
+			// make channel
+		}
+	}
+}
+
+func sendMessage(s *discordgo.Session, id, author, user string) {
+	s.ChannelMessageSend(id, author+" has issued a warning to user "+user)
+}
+
+func sendPrivateMessage() {}
